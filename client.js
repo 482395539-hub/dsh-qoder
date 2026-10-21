@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-	id: 'dsh-qoder',
+	id: '@local/qoder-gw',
 	factory(require) {
 		const React = require('react')
 		const h = React.createElement
