@@ -1,0 +1,21 @@
+# 运行时产物（勿入库）
+state/
+accounts/
+usage/
+backups/
+*.log
+*.pid
+__pycache__/
+*.pyc
+
+# 依赖
+node_modules/
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# 本地敏感信息
+panel-token
+login-*.json
+config.json

@@ -1,0 +1,10 @@
+- insert:
+    - id: dsh-qoder
+      name: 'dsh-qoder'
+      config:
+        port: 8790
+        apiKey: sk-dsh-qoder-local
+        panelPassword: admin
+        realm: cn
+        autoStart: true
+        accountsDir: !!js dshHomePath('qoder/accounts')

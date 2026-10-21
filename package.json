@@ -1,0 +1,56 @@
+{
+  "name": "dsh-qoder",
+  "version": "1.0.0",
+  "description": "Qoder 免费模型直连 DSH：内置设备码登录 + COSY 反代网关，模型列表即刻可选 Qwen3.8-Flash / DeepSeek-Flash 等；设置页支持内置账号先用、分享账号池、个人账号设备码授权、模型地址/Key 配置与模型健康检测。",
+  "icon": "icon.svg",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "qoder",
+    "qwen",
+    "deepseek",
+    "openai-compatible",
+    "gateway",
+    "cordis"
+  ],
+  "homepage": "https://github.com/482395539-hub/dsh-qoder#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/482395539-hub/dsh-qoder.git"
+  },
+  "bugs": {
+    "url": "https://github.com/482395539-hub/dsh-qoder/issues"
+  },
+  "license": "MIT",
+  "type": "module",
+  "main": "./index.js",
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
+    }
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./icon": "./icon.svg",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "icon.svg",
+    "LICENSE",
+    "locale/*.json",
+    "gateway/*"
+  ]
+}
