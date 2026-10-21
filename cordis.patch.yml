@@ -3,7 +3,7 @@
       name: 'dsh-qoder'
       config:
         port: 8790
-        apiKey: sk-dsh-qoder-local
+        apiKey: sk-dsh-qoder-9eA1xR
         panelPassword: admin
         realm: cn
         autoStart: true

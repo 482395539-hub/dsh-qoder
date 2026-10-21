@@ -24,7 +24,7 @@ const STATE_DIR = join(ROOT, 'state')
 
 const DEFAULTS = {
   port: 8790,
-  apiKey: 'sk-dsh-qoder-local',
+  apiKey: 'sk-dsh-qoder-9eA1xR',
   panelPassword: 'admin',
   realm: 'cn',
   autoStart: true,
@@ -682,6 +682,18 @@ export function apply(ctx, rawConfig = {}) {
       const body = await readBody(req).catch(() => { return null })
       if (body === null) return sendJson(res, 400, { ok: false, error: { message: 'invalid JSON body' } })
       try { const r = await gatewayJson('POST', '/accounts/import', body); return sendJson(res, r.status, r.json()) }
+      catch (e) { return sendJson(res, 502, { ok: false, error: { message: e.message } }) }
+    }
+    if (method === 'POST' && sub === '/accounts/import/pat') {
+      const body = await readBody(req).catch(() => ({}))
+      if (!String(body.pat || '').trim()) return sendJson(res, 400, { ok: false, error: { message: 'pat required' } })
+      try { const r = await gatewayJson('POST', '/accounts/import/pat', { pat: String(body.pat).trim(), realm: body.realm || cfg().realm }); return sendJson(res, r.status, r.json()) }
+      catch (e) { return sendJson(res, 502, { ok: false, error: { message: e.message } }) }
+    }
+    if (method === 'POST' && sub === '/accounts/import/desktop') {
+      const body = await readBody(req).catch(() => ({}))
+      const payload = body.all ? { all: true } : (body.path ? { path: String(body.path) } : {})
+      try { const r = await gatewayJson('POST', '/accounts/import/desktop', payload); return sendJson(res, r.status, r.json()) }
       catch (e) { return sendJson(res, 502, { ok: false, error: { message: e.message } }) }
     }
     if (method === 'GET' && sub === '/config') {
