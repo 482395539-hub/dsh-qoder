@@ -1,6 +1,6 @@
 - insert:
-    - id: dsh-qoder
-      name: 'dsh-qoder'
+    - id: qoder-gateway
+      name: '@local/qoder-gw'
       config:
         port: 8790
         apiKey: sk-dsh-qoder-9eA1xR

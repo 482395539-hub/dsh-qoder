@@ -44,7 +44,7 @@ dsh plugin add github:482395539-hub/dsh-qoder
 安装框同样接受本地绝对路径，适合边改边装：
 
 ```text
-<解压后的目录>\dsh-qoder
+<解压后的目录>
 ```
 
 在 DSH 会话里也可以直接让 agent 执行 `plugin_manager` 的 `install_bundle`，`target` 填上面的目录。
