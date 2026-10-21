@@ -89,6 +89,23 @@ window.__ModuleLoader__.load({
 			quotaReset: '周期重置',
 			timeout: '请求超时',
 			checkinHint: '免费档（Flash 系列）不消耗额度；付费档与 auto 需要剩余额度。',
+			authHint: '授权页需先登录 Qoder；登录后会跳回设备确认页，务必在确认页点「确认授权」。链接 10 分钟内有效。',
+			expiresIn: '有效期剩余',
+			manualCheck: '我已完成授权，立即检测',
+			sessionLost: '授权会话已失效，请重新发起登录',
+			pollNetErr: '轮询异常，请重试：',
+			loginManualOk: '检测到授权成功！',
+			importJson: 'JSON 导入',
+			importPat: 'PAT 导入',
+			patTitle: '粘贴 pt- 开头的个人访问令牌（Qoder 设置页生成）',
+			patGo: '导入 PAT',
+			patOk: 'PAT 导入成功',
+			desktopScan: '扫描本机客户端凭证',
+			desktopScanBusy: '扫描中…',
+			desktopImportAll: '导入全部有效凭证',
+			desktopNone: '本机未检测到已登录的 Qoder 桌面端 / CLI 凭证',
+			desktopValid: '有效',
+			desktopInvalid: '不可用',
 		}
 		const en = {
 			nav: 'Qoder Free-Model Gateway',
@@ -171,6 +188,23 @@ window.__ModuleLoader__.load({
 			quotaReset: 'resets',
 			timeout: 'Timeout',
 			checkinHint: 'Free Flash models cost nothing; paid tiers and auto need remaining quota.',
+			authHint: 'Sign in to Qoder on the auth page first; after sign-in it returns to the device confirm page — be sure to click Confirm there. Valid for 10 minutes.',
+			expiresIn: 'Expires in',
+			manualCheck: 'I already authorized — check now',
+			sessionLost: 'Authorization session lost, please start again',
+			pollNetErr: 'Polling error, please retry: ',
+			loginManualOk: 'Authorization detected!',
+			importJson: 'JSON import',
+			importPat: 'PAT import',
+			patTitle: 'Paste a pt- personal access token (created in Qoder settings)',
+			patGo: 'Import PAT',
+			patOk: 'PAT imported',
+			desktopScan: 'Scan local client credentials',
+			desktopScanBusy: 'Scanning…',
+			desktopImportAll: 'Import all valid credentials',
+			desktopNone: 'No signed-in Qoder desktop / CLI credential found on this machine',
+			desktopValid: 'valid',
+			desktopInvalid: 'unusable',
 		}
 		let T = (k) => zh[k] || k
 
@@ -285,7 +319,11 @@ window.__ModuleLoader__.load({
 			const [msg, setMsg] = useState(null)
 			const [login, setLogin] = useState(null)
 			const [importOpen, setImportOpen] = useState(false)
+			const [importMode, setImportMode] = useState('json')
 			const [importText, setImportText] = useState('')
+			const [patText, setPatText] = useState('')
+			const [desktop, setDesktop] = useState(null)
+			const [desktopBusy, setDesktopBusy] = useState(false)
 			const [health, setHealth] = useState(null)
 			const [cfgForm, setCfgForm] = useState({ baseUrl: '', apiKey: '' })
 			const loginRef = useRef(null)
@@ -315,14 +353,23 @@ window.__ModuleLoader__.load({
 
 			useEffect(() => { refresh() }, [refresh])
 
-			// 登录轮询：发起后每 2s 查一次，ok → 自动保存并刷新；expired/error → 提示
+			// 登录轮询：每 2s 查一次；ok → 自动保存并刷新；expired/unknown/连续失败 → 停止并提示
 			useEffect(() => {
 				if (!login?.state) return
 				let stop = false
+				let fails = 0
+				const deadline = (login.startedAt || Date.now()) + 600000
 				const iv = setInterval(async () => {
 					if (stop || !loginRef.current?.state) return
+					if (Date.now() > deadline) {
+						stop = true
+						setLogin(null)
+						flash('err', T('loginExpired'))
+						return
+					}
 					try {
 						const r = await apiGet('/login/poll?state=' + encodeURIComponent(loginRef.current.state))
+						fails = 0
 						const st = r.status
 						if (st === 'ok') {
 							stop = true
@@ -337,20 +384,57 @@ window.__ModuleLoader__.load({
 							stop = true
 							setLogin(null)
 							flash('err', T('loginErr') + (r.message || 'unknown'))
+						} else if (st === 'unknown') {
+							stop = true
+							setLogin(null)
+							flash('err', T('sessionLost'))
 						}
-					} catch { /* 网关瞬时抖动继续轮询 */ }
+					} catch (e) {
+						fails += 1
+						if (fails >= 4) {
+							stop = true
+							setLogin(null)
+							flash('err', T('pollNetErr') + (e.message || ''))
+						}
+					}
 				}, 2000)
 				return () => { stop = true; clearInterval(iv) }
 			}, [login?.state, flash, refresh])
+
+			// 登录面板倒计时（1s 心跳，仅渲染用）
+			const [now, setNow] = useState(Date.now())
+			useEffect(() => {
+				if (!login?.state) return
+				const iv = setInterval(() => setNow(Date.now()), 1000)
+				return () => clearInterval(iv)
+			}, [login?.state])
 
 			const startLogin = async () => {
 				setMsg(null)
 				try {
 					const r = await apiPost('/login/start', { realm: 'cn' })
-					setLogin({ state: r.state, authUrl: r.authUrl })
+					setLogin({ state: r.state, authUrl: r.authUrl, startedAt: Date.now() })
 				} catch (e) {
 					flash('err', T('loginErr') + e.message)
 				}
+			}
+			const manualCheck = async () => {
+				const cur = loginRef.current
+				if (!cur?.state) return
+				setMsg(null)
+				try {
+					const r = await apiGet('/login/poll?state=' + encodeURIComponent(cur.state))
+					if (r.status === 'ok') {
+						setLogin(null)
+						flash('ok', T('loginManualOk'))
+						refresh()
+					} else {
+						const ac = await apiGet('/accounts').catch(() => null)
+						const list = (ac && (ac.accounts || ac.data)) || []
+						flash('err', T('loginErr') + (r.message || r.status || 'pending'))
+						setAccounts(list)
+					}
+				} catch (e) { flash('err', T('pollNetErr') + e.message) }
 			}
 			const cancelLogin = async () => {
 				const cur = loginRef.current
@@ -443,6 +527,38 @@ window.__ModuleLoader__.load({
 				} catch (e) { flash('err', e.message) }
 				finally { setBusy('') }
 			}
+			const doImportPat = async () => {
+				setMsg(null)
+				if (!patText.trim()) return flash('err', T('patTitle'))
+				setBusy('pat')
+				try {
+					await apiPost('/accounts/import/pat', { pat: patText.trim(), realm: 'cn' })
+					flash('ok', T('patOk'))
+					setPatText('')
+					setImportOpen(false)
+					refresh()
+				} catch (e) { flash('err', e.message) }
+				finally { setBusy('') }
+			}
+			const scanDesktop = async () => {
+				setMsg(null)
+				setDesktopBusy(true)
+				try { setDesktop(await apiPost('/accounts/import/desktop', {})) }
+				catch (e) { flash('err', e.message) }
+				finally { setDesktopBusy(false) }
+			}
+			const importDesktopAll = async () => {
+				setMsg(null)
+				setBusy('desktopAll')
+				try {
+					const r = await apiPost('/accounts/import/desktop', { all: true })
+					flash('ok', T('ok') + ' · ' + ((r.imported || []).length) + ' / ' + ((r.accounts || []).length))
+					setImportOpen(false)
+					setDesktop(null)
+					refresh()
+				} catch (e) { flash('err', e.message) }
+				finally { setBusy('') }
+			}
 			const saveCfg = async () => {
 				setMsg(null)
 				try {
@@ -495,19 +611,49 @@ window.__ModuleLoader__.load({
 						h('div', { style: S.sub }, T('loginStep1')),
 						h('div', null, h('a', { style: S.link, href: login.authUrl, target: '_blank', rel: 'noreferrer' }, T('loginOpen') + ' →')),
 						h('div', { style: S.sub }, T('loginStep2')),
+						h('div', { style: { ...S.sub, color: 'var(--dsw-alias-state-warn-primary)' } }, T('authHint')),
 						h('div', { style: S.row },
 							h('span', { style: S.badgeIdle }, T('loginWaiting')),
+							h('span', { style: { ...S.mono, fontSize: 11.5, color: 'var(--dsw-alias-label-secondary)' } },
+								T('expiresIn') + ' ' + Math.max(0, Math.ceil((600000 - (now - (login.startedAt || now))) / 1000)) + 's'),
 							h('div', { style: S.grow }),
+							h('button', { style: btn(false), onClick: manualCheck }, T('manualCheck')),
 							h('button', { style: btn(false), onClick: cancelLogin }, T('loginCancel')),
 						),
 					) : null,
 					importOpen ? h('div', { style: S.acct },
-						h('div', { style: S.sub }, T('importTitle')),
-						h('textarea', { style: S.ta, value: importText, onChange: (e) => setImportText(e.target.value), placeholder: '[{"nickname":"...","refreshToken":"..."}]' }),
 						h('div', { style: S.row },
-							h('button', { style: btn(true, busy === 'import'), onClick: doImport }, busy === 'import' ? '…' : T('importGo')),
-							h('button', { style: btn(false), onClick: () => setImportOpen(false) }, T('importCancel')),
+							h('button', { style: btn(importMode === 'json'), onClick: () => setImportMode('json') }, T('importJson')),
+							h('button', { style: btn(importMode === 'pat'), onClick: () => setImportMode('pat') }, T('importPat')),
+							h('div', { style: S.grow }),
+							h('button', { style: btn(false, desktopBusy), onClick: scanDesktop }, desktopBusy ? T('desktopScanBusy') : T('desktopScan')),
 						),
+						importMode === 'json' ? h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
+							h('div', { style: S.sub }, T('importTitle')),
+							h('textarea', { style: S.ta, value: importText, onChange: (e) => setImportText(e.target.value), placeholder: '[{"nickname":"...","refreshToken":"..."}]' }),
+							h('div', { style: S.row },
+								h('button', { style: btn(true, busy === 'import'), onClick: doImport }, busy === 'import' ? '…' : T('importGo')),
+								h('button', { style: btn(false), onClick: () => setImportOpen(false) }, T('importCancel')),
+							),
+						) : h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
+							h('div', { style: S.sub }, T('patTitle')),
+							h('input', { style: S.input, type: 'password', value: patText, placeholder: 'pt-xxxxxxxx', onChange: (e) => setPatText(e.target.value) }),
+							h('div', { style: S.row },
+								h('button', { style: btn(true, busy === 'pat'), onClick: doImportPat }, busy === 'pat' ? '…' : T('patGo')),
+								h('button', { style: btn(false), onClick: () => setImportOpen(false) }, T('importCancel')),
+							),
+						),
+						desktop ? (desktop.detected && desktop.detected.length
+							? h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
+								h('div', { style: S.sub }, T('desktopScan') + ': ' + desktop.detected.length),
+								desktop.detected.map((c, i) => h('div', { style: S.kv, key: i },
+									h('span', { style: { ...S.mono, fontSize: 11 } }, (c.path || '').slice(-70)),
+									h('span', { style: c.valid ? S.badgeOk : S.badgeIdle }, c.valid ? T('desktopValid') : T('desktopInvalid')),
+									c.realm ? h('span', null, c.realm) : null,
+								)),
+								h('div', null, h('button', { style: btn(true, busy === 'desktopAll'), onClick: importDesktopAll }, busy === 'desktopAll' ? '…' : T('desktopImportAll'))),
+							)
+							: h('div', { style: S.sub }, T('desktopNone'))) : null,
 					) : null,
 					accountList.length === 0
 						? h('div', { style: S.sub }, T('none'))
